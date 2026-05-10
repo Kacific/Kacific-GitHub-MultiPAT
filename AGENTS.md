@@ -2,30 +2,32 @@
 
 ## What this repo is
 
-A documentation-only canonical reference for the direnv + OS-credential-store GitHub PAT pattern used across Kacific repos and a small number of personal repos. There is no application code, no CI logic, no runtime here. Just templates and prose.
+A documentation-only canonical reference for the direnv + OS-credential-store GitHub PAT pattern. There is no application code, no CI logic, no runtime here. Just a generic template and prose.
 
 ## Hard rules — never violated
 
-1. **No real PAT is ever committed.** Every `.envrc.example*` file references a keychain entry **name**, never a token value. If a PR adds a 40-character GitHub token literal, reject it.
+1. **No real PAT is ever committed.** The `.envrc.example` references a keychain entry **name**, never a token value. If a PR adds a 40-character GitHub token literal, reject it.
 2. **`.envrc` itself is never committed.** The repo's `.gitignore` enforces this. `.envrc.example*` is allow-listed.
-3. **Parameterise rather than hardcode** when adding a new variant. The generic `.envrc.example` keeps `<KEYCHAIN_ENTRY>` as a placeholder. Concrete variants (`.envrc.example.kacific`, `.envrc.example.personal`) substitute the real entry name.
+3. **The generic template stays generic.** `.envrc.example` keeps `<KEYCHAIN_ENTRY>` as a placeholder. Concrete entry names belong in **consumer** repos' own `.envrc.example`, not here.
 4. **The README is the single source of truth** for the pattern. Setup, rotation, and non-mac extensibility live there. Consumer repos point at this README rather than re-document.
-5. **No automation.** This repo doesn't run anything. No CI workflows, no scripts, no shell helpers (yet). If a setup helper is added, it must live in a `scripts/` directory and the README must explicitly opt-in to it.
+5. **No automation.** This repo doesn't run anything. No CI workflows, no scripts, no shell helpers (yet). If a setup helper is added later, it must live in a `scripts/` directory and the README must explicitly opt-in to it.
 
-## Adding a new variant
+## Adding a new vault example to the README
 
-To add support for a new scope (e.g. a separate PAT for a contractor account) or a new vault (e.g. 1Password CLI):
+To add support for a new vault (e.g. KeePassXC CLI, AWS Secrets Manager, HashiCorp Vault):
 
-1. Copy `.envrc.example` → `.envrc.example.<variant>` (for a new scope) or `.envrc.example.<vault>` (for a new vault).
-2. Substitute the placeholder with the concrete keychain entry name (or replace the read command with the vault-equivalent).
-3. Update the README's "Current consumers" or "Extending to non-macOS" table to mention the new variant.
-4. Open a PR. Squash-merge.
+1. Add a row to the README's "Extending to non-macOS / non-Keychain vaults" table.
+2. Add a commented example block to `.envrc.example` showing the read-line replacement.
+3. Open a PR. Squash-merge.
+
+Adding a new vault here does **not** add a `.envrc.example.<vault>` file — the canonical only ships the generic placeholder. Consumer repos that adopt the new vault will copy the relevant snippet from the README into their own `.envrc.example`.
 
 ## What NOT to do here
 
 - Don't add application code, build tooling, or test harnesses.
-- Don't vendor copies of consumers' real `.envrc.example` files. Those live in their respective repos and may differ in trivial ways (header comment style, etc.). The variants here are canonical examples, not vendor copies.
-- Don't write a setup wizard / shell-installer until at least three consumers ask for it. The current pattern is two commands (`security add-generic-password ... -W` then `direnv allow .`); a wizard adds dependency for marginal ergonomic gain.
+- Don't ship organisation-specific or repo-specific concrete `.envrc.example` variants. Those live in their respective consumer repos.
+- Don't mention specific consumer repos by name in this canonical README. The pattern is generic; the consumer list is private to whoever runs it.
+- Don't write a setup wizard / shell-installer until at least three independent operators ask for it. The current pattern is two commands (`security add-generic-password ... -W` then `direnv allow .`); a wizard adds dependency for marginal ergonomic gain.
 
 ## When uncertain, link rather than duplicate
 

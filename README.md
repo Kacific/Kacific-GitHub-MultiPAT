@@ -1,14 +1,14 @@
-# Kacific GitHub MultiPAT
+# GitHub MultiPAT — direnv + OS credential store pattern
 
 Canonical reference for the **direnv + OS-managed credential store** pattern that exports a per-repo `GH_TOKEN` for the `gh` CLI without ever putting a personal access token (PAT) into a tracked file or shell history.
 
-This repository documents the pattern, ships a generic `.envrc.example` template, and provides concrete pre-filled variants for the two scopes currently in use: Kacific org repos and personal (geekazoid80) repos.
+This repository documents the pattern and ships a generic `.envrc.example` template. Each consuming repo vendors its own concrete `.envrc.example` (the keychain entry name is the only thing that varies) and points back here for full setup, rotation, and non-macOS guidance.
 
 ## Why this exists
 
 `gh auth login` stores PATs in a system keyring under a single global identity. That works for one user with one account, but breaks down when:
 
-- An engineer has both an org-scoped fine-grained PAT (Kacific) and a personal PAT (geekazoid80), and needs `gh` to pick the right one **per-repo**, not globally.
+- An engineer has more than one PAT (e.g. an org-scoped fine-grained PAT plus a personal PAT) and needs `gh` to pick the right one **per-repo**, not globally.
 - A PAT must rotate (e.g. quarterly fine-grained PAT expiry) and the rotation must not require re-running `gh auth login` in each clone.
 - A token must never appear in shell history, transcripts, process lists, or `git log -p` of any tracked file.
 - Multiple machines need consistent token sourcing without copy-pasting secrets.
@@ -16,7 +16,7 @@ This repository documents the pattern, ships a generic `.envrc.example` template
 The pattern in this repo solves all four:
 
 - Tokens live **only** in the OS-managed credential store (macOS Keychain, Linux `secret-tool`, Windows Credential Manager, 1Password CLI, etc.).
-- `direnv` reads the token from the store at shell-load time and exports it as `GH_TOKEN`. The `gh` CLI prefers `GH_TOKEN` over its own keyring entry, so per-repo `.envrc` files give you per-repo identity automatically.
+- `direnv` reads the token from the store at shell-load time and exports it as `GH_TOKEN`. The `gh` CLI prefers `GH_TOKEN` over its own keyring entry, so per-repo `.envrc` files give per-repo identity automatically.
 - Rotation is a single `security add-generic-password ... -W` (or vault-equivalent) — no code change, no commit, no redeploy.
 - The `.envrc` file itself is gitignored. The committed `.envrc.example` only references the keychain entry **name**, never the token value.
 
@@ -24,11 +24,10 @@ The pattern in this repo solves all four:
 
 | File | Purpose |
 |---|---|
-| `.envrc.example` | Generic placeholder template (`<KEYCHAIN_ENTRY>`). Copy and substitute when introducing a new scope or non-mac vault. |
-| `.envrc.example.kacific` | Concrete variant for Kacific-org repos. Maps `GH_TOKEN` → keychain entry `gh_kacific_pat`. |
-| `.envrc.example.personal` | Concrete variant for personal (geekazoid80) repos. Maps `GH_TOKEN` → `gh_personal_pat`. |
+| `.envrc.example` | Generic placeholder template (`<KEYCHAIN_ENTRY>`). Copy and substitute when adopting in a new repo, or extending to a different vault. |
 | `.gitignore` | Standard exclusions: `.envrc`, `.direnv/`, `.DS_Store`. `.envrc.example*` is allow-listed. |
 | `AGENTS.md` | Contract for AI agents working in this repo. |
+| `README.md` | This file. |
 
 ## Setup (macOS)
 
@@ -37,12 +36,13 @@ One-time per machine:
 ```bash
 brew install direnv
 echo 'eval "$(direnv hook zsh)"' >> ~/.zshrc   # or ~/.bashrc
+gh auth setup-git                              # so `git push` over HTTPS uses GH_TOKEN via gh
 ```
 
-For each scope (Kacific PAT, personal PAT, etc.):
+For each scope (one keychain entry per PAT, e.g. one for org-scoped, one for personal):
 
 ```bash
-security add-generic-password -s 'gh_kacific_pat' -a "$USER" -W
+security add-generic-password -s 'my_pat_name' -a "$USER" -W
 # `-W` reads the PAT from a TTY prompt — never enters shell history, transcripts, or process lists.
 ```
 
@@ -50,7 +50,7 @@ For each consuming repo:
 
 ```bash
 cd <repo>
-cp .envrc.example .envrc       # or copy .envrc.example.kacific / .envrc.example.personal
+cp .envrc.example .envrc       # then substitute <KEYCHAIN_ENTRY> with the keychain name
 direnv allow .
 gh auth status                 # should report `Logged in to github.com (GH_TOKEN)`
 ```
@@ -60,8 +60,8 @@ gh auth status                 # should report `Logged in to github.com (GH_TOKE
 When a PAT expires or you want to roll it:
 
 ```bash
-security delete-generic-password -s 'gh_kacific_pat'
-security add-generic-password    -s 'gh_kacific_pat' -a "$USER" -W
+security delete-generic-password -s 'my_pat_name'
+security add-generic-password    -s 'my_pat_name' -a "$USER" -W
 # Same `-W` as above. Open a new shell or run `direnv reload` for the change to take effect.
 ```
 
@@ -80,24 +80,31 @@ The template assumes macOS `security` CLI, but the pattern is generic: any comma
 | **1Password CLI** (cross-platform) | `op read "op://Private/<vault-item>/credential"` | `op item edit ...` |
 | **Bitwarden CLI** (cross-platform) | `bw get password NAME` (after `bw unlock`) | `bw create item ...` |
 
-When introducing a new vault, copy `.envrc.example` to `.envrc.example.<vault>` and substitute the read/write commands. Keep the canonical `.envrc.example` as the cross-vault placeholder reference.
+When adopting in a new repo on a non-macOS machine, copy `.envrc.example` to `.envrc` and substitute the read command on the export line with the vault-equivalent. The pattern (read at shell-load, export as `GH_TOKEN`, gitignored) stays the same.
 
-## Current consumers
+## Adopting in a new consuming repo
 
-Repositories using this pattern as of the most recent rollout:
+In the consuming repo:
 
-**Kacific org** (use `gh_kacific_pat`):
-- `Kacific/Kacific-Brand-Guide`
-- `Kacific/Kacific-HR-Process`
-- `Kacific/Kacific-NUC-Cron`
-- `Kacific/Kacific-RozeeGPT-Adapter`
+1. Copy this repo's `.envrc.example` to your repo's `.envrc.example`.
+2. Replace `<KEYCHAIN_ENTRY>` with your concrete keychain entry name (e.g. `my_org_pat`).
+3. Slim the comment block to a header pointer back to this canonical repo (no need to duplicate the full setup / rotation / non-mac docs in every consumer). Suggested template:
 
-**Personal — geekazoid80** (use `gh_personal_pat`):
-- `geekazoid80/Living-Networked-Compendium`
-- `geekazoid80/claude-infrabot`
+   ```
+   # .envrc.example — direnv + OS Keychain GH_TOKEN.
+   # Standard: https://github.com/<owner>/<this-repo>
+   # See the canonical README for full setup, rotation, and non-macOS variants.
+   #
+   # Keychain entry: my_org_pat
+   #
+   # Setup (macOS):
+   #   security add-generic-password -s 'my_org_pat' -a "$USER" -W
+   #   cp .envrc.example .envrc && direnv allow .
 
-Each consumer ships a slim per-repo `.envrc.example` that references this canonical repo for the full setup / rotation / extensibility documentation. The export line in their `.envrc.example` matches the canonical pattern, parameterised by the appropriate keychain entry.
+   export GH_TOKEN="$(security find-generic-password -s 'my_org_pat' -a "$USER" -w 2>/dev/null)"
+   ```
+4. Add `.envrc` (and optionally `.direnv/`) to your repo's `.gitignore`. Allow-list `.envrc.example` if your gitignore uses globs that would catch it.
 
 ## License
 
-Internal Kacific reference. Visibility is private. Make public only after scrubbing the `.envrc.example.kacific` variant if open-sourcing the pattern externally.
+MIT — see [LICENSE](./LICENSE) if present, otherwise treat as MIT until a `LICENSE` file is added.

@@ -107,4 +107,4 @@ In the consuming repo:
 
 ## License
 
-MIT — see [LICENSE](./LICENSE) if present, otherwise treat as MIT until a `LICENSE` file is added.
+[MIT](./LICENSE).

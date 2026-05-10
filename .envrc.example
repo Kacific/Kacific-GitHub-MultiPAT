@@ -6,15 +6,12 @@
 # code, never enters shell history, and rotates by replacing the OS entry
 # only. The .envrc itself is gitignored; only this template is committed.
 #
-# This file is the GENERIC template with a placeholder. Concrete variants:
-#   .envrc.example.kacific   — for Kacific-org repos     (gh_kacific_pat)
-#   .envrc.example.personal  — for personal repos        (gh_personal_pat)
-# Copy whichever fits your repo's scope to .envrc, then `direnv allow .`.
+# This file is the GENERIC template with a <KEYCHAIN_ENTRY> placeholder.
+# Adopting in a new repo: copy this file to .envrc.example, substitute
+# <KEYCHAIN_ENTRY> for your concrete keychain entry name (e.g. my_org_pat,
+# my_personal_pat), then `cp .envrc.example .envrc && direnv allow .`.
 #
 # === macOS (default; uses the system Keychain via the `security` CLI) ===
-#
-# Keychain entry name (substitute below):
-#   <KEYCHAIN_ENTRY>   e.g. gh_kacific_pat, gh_personal_pat
 #
 # Setup on a new machine:
 #   brew install direnv
@@ -48,9 +45,9 @@
 #   Bitwarden CLI (cross-platform; requires `bw unlock` first):
 #     export GH_TOKEN="$(bw get password '<KEYCHAIN_ENTRY>')"
 #
-# When introducing a new vault, copy this file to .envrc.example.<vault>
-# and replace BOTH the read line below AND the setup/rotation commands
-# in the header. Update README.md's "Current consumers" or "Extending to
-# non-macOS" table to mention the new variant.
+# When adding a new vault, append a row to README.md's "Extending to
+# non-macOS / non-Keychain vaults" table and a commented example block
+# above. Consumer repos that adopt the new vault copy the relevant
+# snippet into their own .envrc / .envrc.example.
 
 export GH_TOKEN="$(security find-generic-password -s '<KEYCHAIN_ENTRY>' -a "$USER" -w 2>/dev/null)"

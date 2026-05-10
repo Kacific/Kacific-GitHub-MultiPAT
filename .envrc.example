@@ -1,0 +1,56 @@
+# Canonical .envrc.example — direnv + OS credential store -> GH_TOKEN.
+# Standard maintained at: https://github.com/Kacific/Kacific-GitHub-MultiPAT
+#
+# Pattern: read your GitHub fine-grained PAT from the OS-managed credential
+# store at shell-load time, export it as GH_TOKEN. The token never lives in
+# code, never enters shell history, and rotates by replacing the OS entry
+# only. The .envrc itself is gitignored; only this template is committed.
+#
+# This file is the GENERIC template with a placeholder. Concrete variants:
+#   .envrc.example.kacific   — for Kacific-org repos     (gh_kacific_pat)
+#   .envrc.example.personal  — for personal repos        (gh_personal_pat)
+# Copy whichever fits your repo's scope to .envrc, then `direnv allow .`.
+#
+# === macOS (default; uses the system Keychain via the `security` CLI) ===
+#
+# Keychain entry name (substitute below):
+#   <KEYCHAIN_ENTRY>   e.g. gh_kacific_pat, gh_personal_pat
+#
+# Setup on a new machine:
+#   brew install direnv
+#   echo 'eval "$(direnv hook zsh)"' >> ~/.zshrc
+#   security add-generic-password -s '<KEYCHAIN_ENTRY>' -a "$USER" -W   # -W prompts; PAT never enters history
+#   cp .envrc.example .envrc
+#   direnv allow .
+#
+# Rotate the PAT (e.g. on expiry):
+#   security delete-generic-password -s '<KEYCHAIN_ENTRY>'
+#   security add-generic-password    -s '<KEYCHAIN_ENTRY>' -a "$USER" -W
+#
+# === Extending to other OSes / vaults ===
+#
+# The pattern is generic: any command that prints the secret to stdout
+# works. To use a different vault, replace the `security find-generic-
+# password` call below with the equivalent read command.
+#
+#   Linux (libsecret):
+#     export GH_TOKEN="$(secret-tool lookup service '<KEYCHAIN_ENTRY>' account "$USER")"
+#
+#   Linux (`pass`):
+#     export GH_TOKEN="$(pass '<KEYCHAIN_ENTRY>')"
+#
+#   Windows (PowerShell + Credential Manager):
+#     $env:GH_TOKEN = (Get-StoredCredential -Target '<KEYCHAIN_ENTRY>').Password | ConvertFrom-SecureString -AsPlainText
+#
+#   1Password CLI (cross-platform; requires `op signin` first):
+#     export GH_TOKEN="$(op read 'op://Private/<KEYCHAIN_ENTRY>/credential')"
+#
+#   Bitwarden CLI (cross-platform; requires `bw unlock` first):
+#     export GH_TOKEN="$(bw get password '<KEYCHAIN_ENTRY>')"
+#
+# When introducing a new vault, copy this file to .envrc.example.<vault>
+# and replace BOTH the read line below AND the setup/rotation commands
+# in the header. Update README.md's "Current consumers" or "Extending to
+# non-macOS" table to mention the new variant.
+
+export GH_TOKEN="$(security find-generic-password -s '<KEYCHAIN_ENTRY>' -a "$USER" -w 2>/dev/null)"

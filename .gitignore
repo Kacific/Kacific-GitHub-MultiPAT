@@ -1,0 +1,8 @@
+# direnv: per-machine token wiring
+.envrc
+!.envrc.example
+!.envrc.example.*
+.direnv/
+
+# macOS
+.DS_Store

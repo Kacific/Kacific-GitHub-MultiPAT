@@ -55,6 +55,22 @@ direnv allow .
 gh auth status                 # should report `Logged in to github.com (GH_TOKEN)`
 ```
 
+## Required PAT scopes (fine-grained)
+
+When generating a fine-grained PAT for this pattern, grant **at least** the following repository permissions. Fine-grained PATs decouple the PAT's scope from your underlying repo permissions: even a repo admin gets HTTP 403 from any API endpoint whose scope wasn't explicitly granted at PAT-creation time. Missing scopes are silent at `git push` time but bite later when `gh` tries to query the affected endpoint.
+
+| Permission | Access | Why |
+|---|---|---|
+| Contents | Read & Write | `git push`, `git clone` of private repos. Without this, nothing works. |
+| Pull requests | Read & Write | `gh pr create`, `gh pr merge`, `gh pr view`. |
+| Metadata | Read | Mandatory for any fine-grained PAT (auto-granted). |
+| Checks | Read | `gh pr checks`, `gh pr view --json statusCheckRollup`, any CI-status query. Missing this surfaces as `Resource not accessible by personal access token` when the PR has any check configured. |
+| Actions | Read & Write | Required to push commits that touch `.github/workflows/*.yml`. Without it, `git push` is rejected with `refusing to allow a Personal Access Token to create or update workflow ...` even when Contents is granted. Add up-front for any repo where you might ever edit CI. |
+| Issues | Read & Write | Optional. Needed for `gh issue create`, automated triage, etc. |
+| Workflows | (covered by Actions: R/W) | Same scope; some Github UI screens label it as "Workflows" but it maps to the same permission. |
+
+For **org-scoped** PATs (targeting repos under an organisation), the org owner must additionally approve the new fine-grained PAT before it can read private org repos. The approval step is org-side, not user-side; check your org admin if the PAT seems to work on public repos but fails on private ones.
+
 ## Rotation (macOS)
 
 When a PAT expires or you want to roll it:

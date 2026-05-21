@@ -27,27 +27,53 @@
 # === Extending to other OSes / vaults ===
 #
 # The pattern is generic: any command that prints the secret to stdout
-# works. To use a different vault, replace the `security find-generic-
-# password` call below with the equivalent read command.
+# works. To use a different vault, replace the read command on line ~73
+# with the equivalent for your vault. Keep the empty-token guard around
+# it (see "Why guard against empty tokens" below).
 #
 #   Linux (libsecret):
-#     export GH_TOKEN="$(secret-tool lookup service '<KEYCHAIN_ENTRY>' account "$USER")"
+#     _gh_tok="$(secret-tool lookup service '<KEYCHAIN_ENTRY>' account "$USER" 2>/dev/null)"
 #
 #   Linux (`pass`):
-#     export GH_TOKEN="$(pass '<KEYCHAIN_ENTRY>')"
+#     _gh_tok="$(pass '<KEYCHAIN_ENTRY>' 2>/dev/null)"
 #
 #   Windows (PowerShell + Credential Manager):
-#     $env:GH_TOKEN = (Get-StoredCredential -Target '<KEYCHAIN_ENTRY>').Password | ConvertFrom-SecureString -AsPlainText
+#     $tok = (Get-StoredCredential -Target '<KEYCHAIN_ENTRY>').Password | ConvertFrom-SecureString -AsPlainText
+#     if ($tok) { $env:GH_TOKEN = $tok; $env:GITHUB_TOKEN = $tok }
 #
 #   1Password CLI (cross-platform; requires `op signin` first):
-#     export GH_TOKEN="$(op read 'op://Private/<KEYCHAIN_ENTRY>/credential')"
+#     _gh_tok="$(op read 'op://Private/<KEYCHAIN_ENTRY>/credential' 2>/dev/null)"
 #
 #   Bitwarden CLI (cross-platform; requires `bw unlock` first):
-#     export GH_TOKEN="$(bw get password '<KEYCHAIN_ENTRY>')"
+#     _gh_tok="$(bw get password '<KEYCHAIN_ENTRY>' 2>/dev/null)"
 #
 # When adding a new vault, append a row to README.md's "Extending to
 # non-macOS / non-Keychain vaults" table and a commented example block
 # above. Consumer repos that adopt the new vault copy the relevant
 # snippet into their own .envrc / .envrc.example.
+#
+# === Why guard against empty tokens ===
+#
+# A missing or wrong Keychain entry makes `security find-generic-password
+# ... 2>/dev/null` print nothing and exit non-zero (silently because of
+# the redirect). The naive form
+#
+#   export GH_TOKEN="$(security ... 2>/dev/null)"
+#
+# then exports an empty string. The `gh` CLI treats empty-string GH_TOKEN
+# identically to unset (reports "not logged in"), so that case appears to
+# work the same way. Other tools that distinguish empty from unset (shell
+# scripts using `[ -z "$x" ]`, programs that fall through to a fallback
+# auth source only when the var is unset) may behave inconsistently.
+#
+# The guarded form below only exports when the read returned a non-empty
+# value. If the read fails, GH_TOKEN stays unset (or keeps whatever the
+# parent shell had), and `gh auth status` reports the failure clearly so
+# the user knows to fix the Keychain entry.
 
-export GH_TOKEN="$(security find-generic-password -s '<KEYCHAIN_ENTRY>' -a "$USER" -w 2>/dev/null)"
+_gh_tok="$(security find-generic-password -s '<KEYCHAIN_ENTRY>' -a "$USER" -w 2>/dev/null)"
+if [ -n "$_gh_tok" ]; then
+  export GH_TOKEN="$_gh_tok"
+  export GITHUB_TOKEN="$_gh_tok"
+fi
+unset _gh_tok

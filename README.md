@@ -101,8 +101,16 @@ In the consuming repo:
    #   security add-generic-password -s 'my_org_pat' -a "$USER" -W
    #   cp .envrc.example .envrc && direnv allow .
 
-   export GH_TOKEN="$(security find-generic-password -s 'my_org_pat' -a "$USER" -w 2>/dev/null)"
+   _gh_tok="$(security find-generic-password -s 'my_org_pat' -a "$USER" -w 2>/dev/null)"
+   if [ -n "$_gh_tok" ]; then
+     export GH_TOKEN="$_gh_tok"
+     export GITHUB_TOKEN="$_gh_tok"
+   fi
+   unset _gh_tok
    ```
+
+   The guard (`if [ -n "$_gh_tok" ]`) ensures a missing or wrong Keychain entry leaves `GH_TOKEN` unset rather than setting it to an empty string. `gh` treats both the same way (reports "not logged in"), but other tools that distinguish `[ -z "$x" ]` from "unset" can behave inconsistently when the var is exported empty. See the rationale block at the bottom of `.envrc.example`.
+
 4. Add `.envrc` (and optionally `.direnv/`) to your repo's `.gitignore`. Allow-list `.envrc.example` if your gitignore uses globs that would catch it.
 
 ## License

@@ -59,15 +59,45 @@ gh auth status                 # should report `Logged in to github.com (GH_TOKE
 
 When generating a fine-grained PAT for this pattern, grant **at least** the following repository permissions. Fine-grained PATs decouple the PAT's scope from your underlying repo permissions: even a repo admin gets HTTP 403 from any API endpoint whose scope wasn't explicitly granted at PAT-creation time. Missing scopes are silent at `git push` time but bite later when `gh` tries to query the affected endpoint.
 
-| Permission | Access | Why |
+| Permission (UI label) | Access | Why |
 |---|---|---|
 | Contents | Read & Write | `git push`, `git clone` of private repos. Without this, nothing works. |
 | Pull requests | Read & Write | `gh pr create`, `gh pr merge`, `gh pr view`. |
 | Metadata | Read | Mandatory for any fine-grained PAT (auto-granted). |
-| Checks | Read | `gh pr checks`, `gh pr view --json statusCheckRollup`, any CI-status query. Missing this surfaces as `Resource not accessible by personal access token` when the PR has any check configured. |
-| Actions | Read & Write | Required to push commits that touch `.github/workflows/*.yml`. Without it, `git push` is rejected with `refusing to allow a Personal Access Token to create or update workflow ...` even when Contents is granted. Add up-front for any repo where you might ever edit CI. |
+| Actions | Read & Write | Two uses bundled: (1) `git push` of any commit touching `.github/workflows/*.yml` is rejected without it (`refusing to allow a Personal Access Token to create or update workflow ...`), even when Contents is granted; (2) `gh run list` and `gh run view` for CI history — the practical substitute for `gh pr checks`, see the gap below. |
+| Workflows | Read & Write | Same underlying scope as Actions on some GitHub UI screens; older screenshots show "Workflows" instead. Grant whichever the UI presents. |
+| Commit statuses | Read | Required for the older Status API (`/repos/.../commits/.../statuses`). Some legacy CI integrations write there instead of check-runs. Optional unless you use such integrations. |
 | Issues | Read & Write | Optional. Needed for `gh issue create`, automated triage, etc. |
-| Workflows | (covered by Actions: R/W) | Same scope; some Github UI screens label it as "Workflows" but it maps to the same permission. |
+
+### Gap: the Checks API is not callable from fine-grained PATs
+
+GitHub explicitly documents this as a known limitation of fine-grained PATs. From [Managing your personal access tokens — Fine-grained personal access tokens limitations](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens):
+
+> The major gaps in fine-grained personal access tokens are:
+> - ...
+> - **Using fine-grained personal access token to call the Checks API.**
+> - ...
+
+Consequence: `gh pr checks` and `gh pr view --json statusCheckRollup` (both backed by `/repos/.../commits/.../check-runs`) return HTTP 403 with `Resource not accessible by personal access token` and the header `x-accepted-github-permissions: checks=read`. The header names an internal permission that the current PAT creation UI does not expose as a selectable scope. **Older PATs created before this limitation took effect may show `Checks` granted (grandfathered from a prior UI), but the option is not selectable on new tokens.**
+
+**Workaround that works with what fine-grained PATs do support today:**
+
+```bash
+# Instead of: gh pr checks NN
+gh run list --branch <branch> --limit 20 \
+  --json status,conclusion,name,headSha,databaseId
+
+# Instead of: gh pr view NN --json statusCheckRollup
+gh run view <run-id> --json jobs \
+  --jq '.jobs[] | {name, conclusion}'
+
+# Failed-step log for a run
+gh run view <run-id> --log-failed
+```
+
+Both work with `Actions: Read` (which the table above already includes). They return per-workflow conclusions, which is usually what you actually want when checking "did CI pass". This same workaround is also documented inline at the consumer-repo level — see `Kacific/Kacific-HR-Process` `AGENTS.md` § "Tooling quirks" for an example.
+
+For tooling that absolutely must call the check-runs API directly: use a classic PAT with `repo` scope, or a GitHub App. Reserve that fallback for the one piece of tooling that needs it; keep fine-grained PATs for everything else.
 
 For **org-scoped** PATs (targeting repos under an organisation), the org owner must additionally approve the new fine-grained PAT before it can read private org repos. The approval step is org-side, not user-side; check your org admin if the PAT seems to work on public repos but fails on private ones.
 

@@ -1,4 +1,4 @@
-# AGENTS.md — Contract for humans and AI agents
+# CLAUDE.md — Contract for humans and AI agents
 
 ## What this repo is
 

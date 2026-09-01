@@ -66,8 +66,18 @@ When generating a fine-grained PAT for this pattern, grant **at least** the foll
 | Metadata | Read | Mandatory for any fine-grained PAT (auto-granted). |
 | Actions | Read & Write | Two uses bundled: (1) `git push` of any commit touching `.github/workflows/*.yml` is rejected without it (`refusing to allow a Personal Access Token to create or update workflow ...`), even when Contents is granted; (2) `gh run list` and `gh run view` for CI history — the practical substitute for `gh pr checks`, see the gap below. |
 | Workflows | Read & Write | Same underlying scope as Actions on some GitHub UI screens; older screenshots show "Workflows" instead. Grant whichever the UI presents. |
-| Commit statuses | Read | Required for the older Status API (`/repos/.../commits/.../statuses`). Some legacy CI integrations write there instead of check-runs. Optional unless you use such integrations. |
 | Issues | Read & Write | Optional. Needed for `gh issue create`, automated triage, etc. |
+
+**Commit statuses is deliberately not on this list.** An earlier version of the table carried a
+`Commit statuses: Read` row for the legacy Status API (`/repos/.../commits/.../statuses`). The scope was
+removed on 2026-09-01 rather than granted, and its absence is a decision rather than an oversight. Probed
+twice on separate occasions against a private repo, `GET /repos/{owner}/{repo}/commits/HEAD/statuses`
+returns **HTTP 403** with the response header `x-accepted-github-permissions: statuses=read`. The service
+names the missing scope itself, so this is not inferred from a bare failure, and a deliberately malformed
+token returned 401 in the same run, so the probe does discriminate. It stays ungranted because nothing
+using this pattern calls the legacy Status API, and `gh run list` under `Actions: Read` already covers CI
+history. **Grant it only if you adopt a legacy CI integration that writes commit statuses instead of
+check-runs**, and correct this note in the same change. Do not re-add the row as an obvious omission.
 
 ### Gap: the Checks API is not callable from fine-grained PATs
 
